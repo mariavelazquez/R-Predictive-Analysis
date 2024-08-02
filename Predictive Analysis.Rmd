@@ -1,0 +1,1059 @@
+---
+title: "Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: scroll
+    source_code: embed
+    theme: united
+---
+
+```{r setup, include=FALSE,warning=FALSE}
+#include=FALSE will not include r code in output
+#warning=FALSE will remove any warnings from output
+
+library(GGally) #v2.1.2
+library(ggcorrplot) #v0.1.4
+library(MASS) #v7.3-58.1 for Boston data
+library(flexdashboard) #v0.6.0
+library(rpart) #v 4.1.19 Partition package to create trees
+library(rpart.plot) #v 3.1.1 creates nicer tree plots
+library(vip) #v0.3.2 vip()
+library(tidymodels) 
+  #library(parsnip) #v1.1.0 linear_reg(), set_engine(), set_mode(), fit(), predict()
+  #library(yardstick) #v1.2.0 metrics(), rac_auc(), roc_curve(), metric_set(), conf_matrix()
+  #library(dplyr) #v1.1.2 %>%, select(), select_if(), filter(), mutate(), group_by(), 
+    #summarize(), tibble()
+  #library(ggplot2) #v3.4.2 ggplot()
+  #library(broom) #v1.0.5 for tidy(), augment(), glance()
+  #library(rsample) #v1.1.1 initial_split()
+library(plotly) #v4.10.1
+library(performance) #v0.10.0 check_model
+library(see) #v0.7.3 for check_model plots from performance
+library(patchwork) #v1.1.1 for check_model plots from performance
+library(knitr) #v1.41 kable()
+library(janitor)
+library(readr)
+library(knitr) #v1.45 kable(digits=) #formatted table
+library(rmarkdown) #v2.25 paged_table()
+
+```
+
+```{r}
+#Load the data
+df <- read_csv("C:/Users/maria/OneDrive - University of Denver/Desktop/3. ADV PRED MOD/Final Project/Housing.csv") %>% clean_names()
+
+df <- df %>%
+      mutate(priceLevel = factor(if_else(price>4340000,"High","Low"),levels=c("High","Low")))
+
+#Remove rows with NA values
+df <- na.omit(df)
+
+```
+Introduction {data-orientation=rows}
+=======================================================================
+Row {data-height=1200}
+-----------------------------------------------------------------------
+### The Project
+
+#### Executive Summary
+
+This project examines the price forecasting with 13 key features. The goals are to try to predict the house price For this analysis, we first examine the distribution of the variables and look for relationships. Next, we perform Regression models predicting the house price.  Second, we will perform Classification models predicting if the price has a high or low value. Finally, we end with summarizing our conclusions. 
+
+The **best regression model was the Linear model followed by the Ridge lambda 80** both with an *R-squared of 68.2%*, and the **best classification model was the classification tree** with a *Sensitivity of 86%*. 
+
+#### The Problem
+
+This project examines the complex dynamics of house prices utilizing a dataset comprising 545 observations and 13 distinct variables. The primary objective is to construct predictive models to anticipate housing costs based on various influencing factors. The goals are to try to predict the market value of houses based on their essential attributes and amenities, as well as to classify houses based on certain criteria such as connectivity to the main road or furnishing status. For this analysis, we first explore the distribution of variables to understand their characteristics and identify potential relationships among them. This initial exploration provides insights into the dataset's structure and informs subsequent modeling strategies.Next, we employ regression analysis techniques to predict house prices based on key variables such as total area, number of bedrooms and bathrooms, number of stories, and amenities like air conditioning and heating systems. By leveraging regression models, we aim to discern the quantitative impact of each predictor on house prices. Secondly, we intend to convert the 'Price' variable into a qualitative feature, categorizing it as either 'high' or 'low' based on certain criteria. By transforming the price into a qualitative variable, we aim to simplify the interpretation of its impact on other factors influencing house prices. This classification task allows us to discern patterns and relationships between various attributes and the perceived value of properties, thereby enhancing our understanding of the factors driving market perceptions and preferences.Finally, we end with summarizing our conclusions. 
+
+
+
+#### The Data
+This dataset has 545 rows and 13 variables. 
+
+
+
+### The Data
+VARIABLES TO PREDICT WITH
+
+* **Area:** Total area of the house in square feet.
+* **Bedrooms:** The number of bedrooms in the house.
+* **Bathrooms:** The number of bathrooms in the house.
+* **Stories:** The number of stories comprising the property.
+* **Mainroad:** Indicates whether the house connects to the main road ('Yes' or 'No').
+* **Guestroom:** Indicates the presence of a guest room ('Yes' or 'No').
+* **Basement:** Indicates the presence of a basement ('Yes' or 'No').
+* **Hotwaterheating:** Indicates the presence of a hot water heating system ('Yes' or 'No').
+* **Airconditioning:** Indicates the presence of air conditioning ('Yes' or 'No').
+* **Parking:** The number of parking spots available.
+* **Prefarea:** Indicates whether the house is in a preferred area ('Yes' or 'No').
+* **Furnishingstatus:** Indicates the furnishing status of the house ('Furnished', 'Semi-Furnished', 'Unfurnished').
+
+VARIABLES WE WANT TO PREDICT
+
+* **Price:** The price of the house.
+* **PriceLevel:** Categorization of house prices as 'High' or 'Low'. It is determined based on whether the price of the house is greater than $4,340,000. 'High' indicates prices above this threshold, while 'Low' indicates prices equal to or below it.
+
+Data Exploration {data-orientation=rows}
+=======================================================================
+Column {.sidebar data-width=200}
+-------------------------------------
+### Data Overview 
+From this data we can see that our variables have a variety of different values based on their types. Prce has a min of $1,750,000 but a max of $13,300,000. We can see several of the values have a wide range of values. In this data, remember `priceLevel` is just a categorical variable that is High if price > $4,340,000.
+
+
+Column {data-width=450, data-height=600}
+-----------------------------------------------------------------------
+
+### View the Data Summaries
+Now we can see the range of values for each variable.
+```{r, cache=TRUE}
+#View data
+summary(df)
+```
+
+Column {data-width=150, data-height=400}
+-----------------------------------------------------------------------
+### Average Price Value by `stories` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(stories) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+
+### Average Price Value by `mainroad` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(mainroad) %>%
+  summarize(Count=n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+
+
+```
+
+### Average Price Value by `guestroom` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(guestroom) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+Column {data-width=150, data-height=400}
+-----------------------------------------------------------------------
+### Average Price Value by `basement` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(basement) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+
+### Average Price Value by `hot water heating` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(hotwaterheating) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+
+### Average Price Value by `air conditioning` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(airconditioning) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+Column {data-width=150, data-height=400}
+-----------------------------------------------------------------------
+### Average Price Value by `prefarea` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(prefarea) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+
+### Average Price Value by `furnishing status` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(furnishingstatus) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+
+### Average Price Value by `price level` 
+```{r, cache=TRUE}
+
+df %>%
+  group_by(priceLevel) %>%
+  summarize(Count =n(), Mean_Price = mean(price)) %>%
+  kable(digits=2)
+```
+
+#################
+Data Visualization {data-orientation=rows}
+=======================================================================
+
+### Response Variables relationships with predictors
+
+* We can see we have about 50% of the data as high price (>$4,340,000). Looking at the potential predictors related to price, we see the strongest relationships with bathrooms, and area.
+
+* We see the largest concentration of values around $3.85 M. The data is also skewed to the right. Looking at the potential predictors related to Price Level, the strongest relationships occur with bathrooms too.
+
+Row {data-height=550}
+-----------------------------------------------------------------------
+#### Price Level
+
+```{r, cache=TRUE}
+ggplotly(ggplot(df,aes(x=priceLevel)) + geom_bar())
+```
+
+#### Price
+```{r, cache=TRUE}
+ggplotly(ggplot(df, aes(price / 1000000)) + geom_histogram(bins=10) +
+  labs(x = "Price (Millions)", y = "Frequency", title = "Histogram of Price"))
+
+```
+
+
+Row {.tabset data-height=450}
+-----------------------------------------------------------------------
+### Price vs Categorial Variables #1
+```{r, cache=TRUE}
+ggplotly(ggpairs(dplyr::select(df,price,mainroad, guestroom, basement, hotwaterheating)))
+```
+
+### Price vs Categorial Variables #2
+```{r, cache=TRUE}
+ggplotly(ggpairs(dplyr::select(df,price, airconditioning, prefarea, furnishingstatus)))
+
+```
+
+
+###  Price vs Continuous Variables
+```{r, cache=TRUE}
+ggplotly(ggcorrplot(cor(dplyr::select(df,price,area, bedrooms, bathrooms, stories, parking))))
+```
+
+### Price Level vs Continuous Variables #1
+```{r, cache=TRUE}
+ggplotly(ggpairs(dplyr::select(df,priceLevel,area, bedrooms, bathrooms)))
+```
+
+### Price Level vs Continuous Variables #2
+```{r, cache=TRUE}
+ggplotly(ggpairs(dplyr::select(df,priceLevel,stories, parking)))
+
+```
+
+
+
+
+# Regression  Model {data-navmenu="Regression Models"}
+
+Column {.sidebar data-width=520}
+----------------------------------------------------------------------
+
+### Linear Regression Model predicting Price
+
+For the prediction of the continuous variable price, first we will use linear regression. The results are summarized below.
+
+We can see a curve in the Residuals vs Fitted - therefore there is a pattern to the lower and higher prices not being predicted as well as those in the middle.
+
+Reducing the predictors that did not help with prediction of the price did not have a big impact our fit statistics (R-square and rmSE (root mean squared error)).
+
+From the following table, we can see the effect on price by the predictor variables.
+```{r, cache=TRUE}
+#create table summary of predictor changes
+predchang = tibble(
+  Variable = c('Area', 'Bedrooms','Bathrooms','Stories','Parking','Mainroad Yes','Guestroom Yes', 'Basement Yes', 'Hot water heating Yes', ' Airconditioning Yes', 'Prefarea Yes'),
+  Direction = c('Increase','Increase','Increase','Increase', 'Increase','Increase','Increase','Increase','Increase','Increase','Increase')
+)
+predchang %>%
+  kable(align = 'l') #pretty table output
+
+```
+
+Row{data-height=2000, column-width = 700, .tabset .tabset-fade} 
+-----------------------------------------------------------------------
+
+### Linear Regression Full
+
+#### Full Model Results
+```{r, cache=TRUE}
+reg_recipe <- recipe(price ~ ., data = df) %>% 
+  step_rm(priceLevel) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_predictors()) %>%
+  prep()
+df_reg_norm <- bake(reg_recipe, df)
+#Define the model specification
+reg_spec <- linear_reg() %>% ## Class of problem  
+   set_engine("lm") %>% ## The particular function that we use  
+   set_mode("regression") ## type of model
+#Fit the model
+reg1_fit <- reg_spec %>%  
+   fit(price ~ .,data = df_reg_norm)
+#Capture the predictions and metrics
+pred_reg1_fit <- augment(reg1_fit,df_reg_norm)
+curr_metrics <- pred_reg1_fit %>%
+  metrics(truth=price,estimate=.pred)
+results_reg <- tibble(model = "Linear Model",
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]]) 
+
+```
+#### The Full Regression Model Coefficients
+```{r}
+tidy(reg1_fit) %>%
+  kable(digits=2)
+```
+#### Residual Assumptions Explorations
+
+```{r, cache=TRUE}
+reg1_fit %>%
+  check_model(check=c('normality'))
+```
+
+#### Analysis Summary
+After examining this model, we determine that there are some predictors that are not important in predicting the price, so a pruned version of the model is created by removing predictors that are not significant.
+
+```{r}
+results_reg %>%
+  kable(digits = 2)
+```
+
+
+### Linear Regression Final 
+For this analysis we will use a pruned Linear Regression Model. We removed guestroom, bedrooms, and mainroad. 
+
+#### Final Model Results
+```{r}
+reg2_fit <- reg_spec %>%
+  fit(price ~ . -guestroom_yes -bedrooms -mainroad_yes,data = df_reg_norm)
+#Capture the predictions and metrics
+pred_reg2_fit <- augment(reg2_fit,df_reg_norm)
+curr_metrics <- pred_reg2_fit %>%
+  metrics(truth=price,estimate=.pred)
+results_new <- tibble(model = "Linear Final Model",
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]])
+results_reg <- bind_rows(results_reg, results_new)
+reg2_mae <- curr_metrics %>%
+  filter(.metric=='mae') %>%
+  pull(.estimate)
+
+```
+
+#### The Final Regression Model Coefficients
+```{r}
+tidy(reg2_fit) %>%
+  kable(digits=2)
+```
+
+#### Residual Assumptions Explorations
+
+```{r, cache=TRUE}
+reg2_fit %>%
+  check_model(check=c('linearity','qq'))
+```
+
+#### Compare actual (Price) vs predicted (y_hat) for pruned regression model
+```{r}
+#Plot the Actual Versus Predicted Values
+ggplotly(ggplot(data = pred_reg2_fit,
+            aes(x = .pred, y = price)) +
+          geom_point(col = "#6e0000") +
+            geom_abline(slope = 1) +
+            ggtitle(paste("Pruned Regression with MAE",round(reg2_mae,2))))
+```
+
+```{r}
+results_reg %>%
+  kable(digits=2)
+```
+
+# Regression Tree Analysis {data-navmenu="Regression Models"}
+
+Column {.sidebar data-width=520}
+----------------------------------------------------------------------
+
+### Regression Trees predicting price
+
+#### Analysis Summary
+
+After examining these two trees we can see that **area** is the most important variables for both the original tree and the tuned tree with.  The next most important variables are **bathrooms**, **stories**, **parking**, and **air conditioning**. We can see that 
+
+* if the house has a **larger total area** (measured in square feet), the **price tends to be higher**. 
+* if the house has a **higher number of bathrooms**, it also **increases price**. 
+* Finally, **a greater number of stories, the presence of air conditioning, and ample parking spaces also correlate with higher prices**. 
+The pruned tree is suggested since it is a simpler model and it has a higher adjusted R Squared.
+
+Row{data-height=2000, column-width = 700, .tabset .tabset-fade} 
+-----------------------------------------------------------------------
+
+### Regression Tree
+We will predict the Price with all the variables using the training and testing datasets.
+```{r}
+set.seed(333)
+housing_split <- initial_split(df_reg_norm, prop = .65)
+housing_train <- rsample::training(housing_split)
+housing_test <- rsample::testing(housing_split)
+```
+
+```{r}
+#Define the model specification
+tree_reg_spec <- decision_tree() %>%
+  set_engine("rpart") %>%
+  set_mode("regression")
+#Fit the model
+tree1_fit <- tree_reg_spec %>%  
+   fit(price ~ .,data = housing_train)
+#Capture the predictions and metrics
+pred_tree1_fit <- augment(tree1_fit,housing_test)
+curr_metrics <- pred_tree1_fit %>%
+  metrics(truth=price,estimate=.pred)
+results_new <- tibble(model = "Reg Tree Model",
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]])
+tree1_mae <- curr_metrics %>%
+  filter(.metric=='mae') %>%
+  pull(.estimate)
+results_reg <- bind_rows(results_reg, results_new)
+
+```
+
+#### View the regression tree.
+We see it has 12 leaf nodes.
+```{r}
+rpart.plot(tree1_fit$fit, roundint=FALSE)
+```
+
+#### View the Variable Importance Plot
+```{r}
+vip(tree1_fit)
+```
+
+#### Compare actual (Price) vs predicted (y_hat)
+```{r}
+#Plot the Actual Versus Predicted Values
+ggplotly(ggplot(data = pred_tree1_fit,
+            aes(x = .pred, y = price)) +
+  geom_point(col = "#6e0000") +
+  geom_abline(slope = 1) +
+  ggtitle(paste("Regression Tree with MAE",round(tree1_mae,2))))
+```
+
+#### Compare the Metrics
+```{r}
+results_reg %>%
+  kable(digits=2)
+```
+
+### Tuned Regression Tree
+Will tuning improve performance? We'll use cross validation on the cost complexity and the tree depth.
+```{r}
+#Define the model specification
+tree_tune_spec <- decision_tree(cost_complexity = tune(),
+                             tree_depth = tune()) %>% 
+  set_engine("rpart") %>% 
+  set_mode("regression")
+df_folds <- vfold_cv(housing_train)
+tree_grid <- dials::grid_regular(cost_complexity(),
+                                   tree_depth(range = c(2, 6)),
+                                   levels = 5)
+tree2_wf <- workflow() %>%
+  add_model(tree_tune_spec) %>%
+  add_formula(price ~ .)
+#Tune on the grid of values
+tree2_rs <- tree2_wf %>% 
+  tune_grid(resamples = df_folds,
+            grid = tree_grid)
+#finalize the workflow
+final_tree_wf <- tree2_wf %>% 
+  finalize_workflow(select_best(tree2_rs, metric='rmse'))
+final_tree_fit <- final_tree_wf %>%
+  fit(data = housing_test) %>%
+  extract_fit_parsnip() 
+#Capture the predictions and metrics
+pred_tree2_fit <- augment(final_tree_fit,housing_test)
+curr_metrics <- pred_tree2_fit %>%
+  metrics(truth=price,estimate=.pred)
+results_new <- tibble(model = "Tuned Reg Tree Model",
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]])
+tree2_mae = curr_metrics %>%
+  filter(.metric=='mae') %>%
+  pull(.estimate)
+results_reg <- bind_rows(results_reg, results_new)
+
+```
+
+```{r}
+final_tree_fit$spec
+```
+
+#### View the regression tree.
+We see it has 15 leaf nodes.
+```{r}
+rpart.plot(final_tree_fit$fit, roundint=FALSE)
+```
+
+#### View the Variable Importance Plot
+```{r}
+vip(final_tree_fit)
+```
+
+#### Compare actual (price) vs predicted (y_hat) for tuned tree
+```{r}
+ggplotly(ggplot(data = pred_tree2_fit,
+            aes(x = .pred, y = price)) +
+        geom_point(col = "#6e0000") +
+        geom_abline(slope = 1) +
+        ggtitle(paste("Regression Tuned Tree with MAE",round(tree2_mae,2))))
+```
+
+
+#### Compare the metrics
+```{r}
+results_reg %>%
+  kable(digits=2)
+```
+
+# Ridge Regression {data-navmenu="Regression Models"}
+
+Column {.sidebar data-width=520}
+----------------------------------------------------------------------
+
+### Ridge Regression predicting price
+
+#### Analysis Summary
+
+Looking at the data, we can see there are many correlated predictors. Given that we want to want to avoid multicollinearity, we are going to use ridge regression. 
+
+Upon identifying the optimal penalty parameter, we find that a λ of 0.1 yields promising results. However, upon closer examination, we observe a discrepancy in the performance metrics. When the model is trained and tested without partitioning the data, the R-squared value tends to be slightly higher. However, when utilizing the conventional training/testing approach, the R-squared value tends to be marginally lower. Furthermore, across various values of λ, the evaluation metrics such as RMSE or R-squared exhibit no significant variation.
+
+Row{data-height=2000, column-width = 700, .tabset .tabset-fade} 
+-----------------------------------------------------------------------
+
+### Ridge Regression
+
+We will predict the Price with all the variables. First off, let's look at the correlations between predictor variables.
+
+#### Correlation Plot
+```{r}
+ggcorrplot(cor(select_if(df,is.numeric)), lab = TRUE)
+```
+
+```{r}
+set.seed(333)
+housing_split <- initial_split(df_reg_norm, prop = .65)
+housing_train <- rsample::training(housing_split)
+housing_test <- rsample::testing(housing_split)
+```
+
+```{r}
+rr_spec <- linear_reg(penalty = 80, 
+                      mixture = 0) %>% 
+          set_engine("glmnet") %>% 
+          set_mode("regression") 
+
+rr_fit <- rr_spec %>%
+                    fit(price ~ ., df_reg_norm)
+```
+
+#### Compare the Metrics
+
+```{r}
+curr_metrics <- rr_fit %>%
+                    augment(df_reg_norm) %>%
+                    metrics(truth=price,estimate=.pred)
+results_new <- tibble(model = 'Ridge Lambda 80',
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]])
+results_reg <- bind_rows(results_reg, results_new)
+results_reg %>%
+  kable(digits = 3)
+```
+
+
+```{r}
+rr_fit <- rr_spec %>%
+                    fit(price ~ ., housing_train)
+pred_rr_fit <- augment(rr_fit,housing_test)
+curr_metrics <- pred_rr_fit %>%
+  metrics(truth=price,estimate=.pred)
+results_new <- tibble(model = "Ridge Lambda 80 Train/Test",
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]])
+rr_mae <- curr_metrics %>%
+  filter(.metric=='mae') %>%
+  pull(.estimate)
+results_reg <- bind_rows(results_reg, results_new)
+```
+
+#### Plot Actual vs Predicted Test Data
+```{r}
+pred_rr_fit %>%
+  ggplot(aes(y = .pred, x = price)) + 
+      geom_point(col = "#6e0000") +
+      geom_abline(col="gold") + 
+      ggtitle("Predicted Price vs Actual Price",
+              subtitle=paste("Ridge Regression","Lambda=80"))
+```
+
+#### Ridge Model Tuning - Varying our parameters
+
+Now, let’s tune for the “optimal” value of λ using tune(). From Kuhn and Johnson (2016): “Many models have important parameters which cannot be estimated directly from the data”, e.g., in a ridge or lasso regression.
+ 
+```{r}
+housing_grid <- tibble(penalty = seq(0.1, 50, len = 100))
+housing_folds <- vfold_cv(housing_train, v = 5)
+
+#Define Model Specifications
+rrtune_spec <- linear_reg(penalty = tune(),
+                          mixture = 0) %>% 
+                      set_engine("glmnet") %>% 
+                      set_mode("regression") 
+
+#Fit a workflow and resample across the folds
+rrtune_wf <- workflow() %>%
+                      add_model(rrtune_spec) %>% 
+                      add_formula(price ~ .)
+rrtune_rs <- rrtune_wf %>%
+                      tune_grid(resamples = housing_folds, 
+                                grid = housing_grid)
+```
+
+#### Mean RMSE and RSQ versus the log(penalty)
+```{r}
+
+df_p <- rrtune_rs %>%
+  collect_metrics()
+p <- ggplot(df_p, aes(log(penalty), mean, color = .metric))
+p + geom_errorbar(aes(ymin = mean - 2*std_err, ymax = mean + 2*std_err),
+                  alpha = 0.5) +
+  geom_line() +
+  facet_wrap(~ .metric, scales = "free", nrow = 2) +
+  theme(legend.position = "none")
+```
+
+### Finding the best model based on the tuned value based on RMSE
+
+```{r}
+#Find the best model based on the tuned value
+lowest_rmse_rr <- rrtune_rs %>%
+  select_best("rmse", penalty)
+lowest_rmse_rr %>%
+  kable()
+```
+
+### Finding the best model based on the tuned value based on RSQ
+```{r}
+#Find the best model based on the tuned value
+lowest_rsq_rr <- rrtune_rs %>%
+  select_best("rsq", penalty)
+lowest_rsq_rr %>%
+  kable()
+```
+
+
+```{r}
+#We can transform the penalty to compare on the graph by calculating the log of the value.
+log <- log(.1)
+```
+#### Refit Model using Best penalty
+Here we are going to refit the model using the best penalty and view the test error statistics. 
+
+```{r}
+#Finalize the workflow based on this best model
+print(paste('The lowest rmse Ridge penalty is',lowest_rmse_rr$penalty))
+```
+```{r}
+final_rr <- rrtune_wf %>% 
+              finalize_workflow(lowest_rmse_rr)
+final_rr_fit <- final_rr %>% 
+                  fit(housing_train)
+
+#Use final workflow to find Ridge Test Error Measures
+pred_final_rr_fit <- final_rr_fit %>% 
+                        augment(housing_test)
+
+curr_metrics <- pred_final_rr_fit %>%
+                   metrics(truth=price,estimate=.pred)
+results_new <- tibble(model = 'Ridge Tuned',
+                  RMSE = curr_metrics[[1,3]],
+                  MAE = curr_metrics[[3,3]],
+                  RSQ = curr_metrics[[2,3]])
+
+results_reg <- bind_rows(results_reg,results_new)
+```
+
+#### The Model Coefficients
+Here are the final model coefficients.
+
+```{r}
+#Final Model Ridge Reg coefficients
+final_rr_fit %>%
+  extract_fit_parsnip() %>% 
+  tidy() %>%
+  kable(digits = 3)
+```
+#### Plot Actual vs Predicted Test Data
+```{r}
+pred_final_rr_fit %>%
+  ggplot(aes(y = .pred, x = price)) + 
+      geom_point(col = "#6e0000") +
+      geom_abline(col="gold") + 
+      ggtitle("Predicted Price vs Actual Price",
+              subtitle=paste("Ridge Regression","Lambda=",round(lowest_rmse_rr$penalty,3)))
+```
+
+#### Plot of Coefficients Across Lambdas Ridge Model
+
+```{r}
+coef_plot_final <- final_rr %>% 
+                    fit(housing_train)
+
+tidy_coefs <- coef_plot_final$fit$fit$fit %>% 
+                tidy() %>% 
+                filter(term != "(Intercept)") %>% 
+                select(-step, -dev.ratio)
+
+best_penalty <- tibble(penalty=.1)
+delta <- abs(tidy_coefs$lambda - best_penalty$penalty)
+lambda_opt <- tidy_coefs$lambda[which.min(delta)]
+
+label_coefs <- tidy_coefs %>% 
+                mutate(abs_estimate = abs(estimate)) %>% 
+                filter(abs_estimate >= 0.01) %>% 
+                distinct(term) %>% 
+                inner_join(tidy_coefs, by = "term") %>% 
+                filter(lambda == lambda_opt)
+
+tidy_coefs %>% 
+  ggplot(aes(x = lambda, y = estimate, group = term, col = term, label = term)) +
+  geom_vline(xintercept = lambda_opt, lty = 3) +
+  geom_line(alpha = .4) +
+  theme(legend.position = "none") +
+  scale_x_log10() +
+  ggrepel::geom_text_repel(data = label_coefs, max.overlaps = 10)
+```
+
+#### Compare the Metrics
+```{r}
+results_reg %>%
+  kable(digits = 3)
+```
+
+Classification Analysis {data-orientation=rows}
+=======================================================================
+Row
+-----------------------------------------------------------------------
+### Classification Models
+
+When predicting the high/low price variable we have coded it so that High means it is higher than > $4,340,000 and Low otherwise. For this analysis we will perform a classification tree and an logistic regression. The classification tree has a sensitivity of around 86%, and 83% using the cutoff. The logistic model has a sensitivity of around 81%, and 84% using the cutoff. If I had to choose a single model I would choose the classification tree since it has a reasonable higher sensitivity percentage. 
+
+Row {data-height=2500 .tabset .tabset-fade}
+-------------------------------------
+
+### Classification Trees 
+We will use all the variables except price which is the actual price because this is what the PriceLevel is created from. For this model we will set the cost complexity to .001.
+
+```{r}
+class_recipe <- recipe(priceLevel ~ ., data = dplyr::select(df,-price)) %>%
+  step_normalize(all_numeric()) %>%
+  prep()
+df_class_norm <- bake(class_recipe, df)
+
+tree_class_spec <- decision_tree(cost_complexity=.001) %>%
+                    set_engine("rpart") %>%
+                    set_mode("classification")
+#Fit the model
+class_tree1_fit <- tree_class_spec %>%  
+   fit(priceLevel ~ .,data = df_class_norm)
+#Capture the predictions and metrics
+pred_class_tree1_fit <- augment(class_tree1_fit,df_class_norm)
+my_class_metrics <- metric_set(yardstick::accuracy, yardstick::specificity, yardstick::sensitivity)
+curr_metrics <- pred_class_tree1_fit %>%
+  my_class_metrics(truth=priceLevel,estimate=.pred_class)
+results_cls <- tibble(model = "Classification Tree Model",
+                  Accuracy = curr_metrics[[1,3]],
+                  Sensitivity = curr_metrics[[3,3]],
+                  Specificity = curr_metrics[[2,3]])
+class_tree1_sens <- curr_metrics %>%
+  filter(.metric=='sens') %>%
+  pull(.estimate)
+
+```
+
+#### Variable Importance
+Here we view the variable importance measures. The higher the value, the more important.
+```{r}
+vip(class_tree1_fit)
+```
+
+#### View the Classification Tree Plot
+We can see we have 15 leaf nodes.
+```{r}
+rpart.plot(class_tree1_fit$fit, type=1, extra = 102, roundint=FALSE)
+```
+
+#### Confusion matrix
+```{r}
+pred_class_tree1_fit %>%
+  conf_mat(truth=priceLevel,estimate=.pred_class)
+```
+
+#### View the Metrics
+```{r}
+results_cls %>%
+  kable(digits = 2, align = 'l')
+```
+
+#### Checking the Cutoff
+```{r}
+#Find Best Threshold cutoff
+ROC_threshold <- function(pred_data,truth,probs) {
+  #This function finds the cutoff with the max sum of sensitivity and specificity
+  #Created tidy version of:
+  #http://scipp.ucsc.edu/~pablo/pulsarness/Step_02_ROC_and_Table_function.html
+  #The inputs are the prediction table (from augment()) and the columns for the
+  #truth and estimate values. The columns need to be strings (i.e., 'sales')
+ 
+  roc_curve_tbl <- pred_data %>% 
+                    roc_curve(truth = {{truth}}, {{probs}}) 
+  auc = pred_data %>%
+              roc_auc(truth = {{truth}}, {{probs}}) %>%
+              pull(.estimate)
+  best_row = which.max(roc_curve_tbl$specificity + roc_curve_tbl$sensitivity)
+  print(paste("Best Cutoff", round(roc_curve_tbl[best_row,'.threshold'],4),
+              "Sensitivity", round(roc_curve_tbl[best_row,'sensitivity'],4),
+              "Specificity", round(roc_curve_tbl[best_row,'specificity'],4),
+              "AUC for Model", round(auc,4)))
+}
+ROC_threshold(pred_class_tree1_fit,'priceLevel', '.pred_High')
+
+#Adding a new cutoff prediction column
+pred_class_tree1_fit <- pred_class_tree1_fit %>%
+                    mutate(pred_High_6 = factor(ifelse(.pred_High > .60,"High","Low"),
+                                              levels=c("High","Low")))
+```
+
+#### Confusion matrix for Classification Cutoff 60%
+```{r}
+pred_class_tree1_fit %>%
+  conf_mat(truth=priceLevel,estimate=pred_High_6)
+```
+
+#### Metrics for Classification Cutoff 60%
+```{r}
+curr_metrics <- pred_class_tree1_fit %>%
+  my_class_metrics(truth=priceLevel,estimate=pred_High_6)
+results_new <- tibble(model = "Classification Tree Model 60% Cutoff",
+                  Accuracy = curr_metrics[[1,3]],
+                  Sensitivity = curr_metrics[[3,3]],
+                  Specificity = curr_metrics[[2,3]])
+results_cls <- bind_rows(results_cls, results_new)
+results_cls %>%
+  kable(digits=2, align = 'l')
+```
+
+### Logistic Regression 
+For our final model, we will use logistic regression to explore Price Level. We can see area and air conditioning are the most important variables in the model. 
+
+#### Logistic Regression Equation
+```{r}
+#Define the model specification
+log_spec <- logistic_reg() %>%
+             set_engine('glm') %>%
+             set_mode('classification') 
+
+#Fit the model
+log_fit <- log_spec %>%
+              fit(priceLevel ~ ., data = df_class_norm)
+tidy(log_fit$fit) %>%
+  kable(digits=2)
+```
+
+#### Pruned Logistic Regression Equation
+```{r}
+#Fit the model
+log2_fit <- log_spec %>%
+              fit(priceLevel ~ .-hotwaterheating-parking, data = df_class_norm)
+tidy(log2_fit$fit) %>%
+  kable(digits=2)
+
+#Capture the predictions and metrics
+pred_log2_fit <- augment(log2_fit,df_class_norm)
+my_class_metrics <- metric_set(yardstick::accuracy, yardstick::specificity, yardstick::sensitivity)
+curr_metrics <- pred_log2_fit %>%
+  my_class_metrics(truth=priceLevel,estimate=.pred_class)
+results_new <- tibble(model = "Pruned Logistic Model",
+                  Accuracy = curr_metrics[[1,3]],
+                  Sensitivity = curr_metrics[[3,3]],
+                  Specificity = curr_metrics[[2,3]])
+results_cls <- bind_rows(results_cls, results_new)
+class_tree1_sens <- curr_metrics %>%
+  filter(.metric=='sens') %>%
+  pull(.estimate)
+```
+
+#### Examine the Confusion Matrix
+```{r}
+pred_log2_fit %>%
+  conf_mat(truth=priceLevel,estimate=.pred_class)
+```
+#### Variable Importance
+Here we view the variable importance measures. The higher the value, the more important.
+```{r}
+vip(log2_fit)
+```
+
+#### Confusion matrix
+```{r}
+pred_log2_fit %>%
+  conf_mat(truth=priceLevel,estimate=.pred_class)
+```
+
+#### View the Metrics
+```{r}
+results_cls %>%
+  kable(digits = 2, align = 'l')
+```
+#### Checking the Cutoff
+```{r}
+ROC_threshold(pred_log2_fit, 'priceLevel', '.pred_High')
+
+#Adding a new cutoff prediction column
+pred_log2_fit <- pred_log2_fit %>%
+                    mutate(pred_High_4 = factor(ifelse(.pred_High > .47,"High","Low"),
+                                              levels=c("High","Low")))
+```
+
+#### Confusion matrix for Logistic Cutoff 47%
+```{r}
+pred_log2_fit %>%
+  conf_mat(truth=priceLevel,estimate=pred_High_4)
+```
+
+
+#### Metrics for Logistic Cutoff 47%
+```{r}
+curr_metrics <- pred_log2_fit %>%
+  my_class_metrics(truth=priceLevel,estimate=pred_High_4)
+results_new <- tibble(model = "Logistic Model 47% Cutoff",
+                  Accuracy = curr_metrics[[1,3]],
+                  Sensitivity = curr_metrics[[3,3]],
+                  Specificity = curr_metrics[[2,3]])
+results_cls <- bind_rows(results_cls, results_new)
+results_cls %>%
+  kable(digits = 2, align = 'l')
+```
+Conclusion
+=======================================================================
+
+### Summary
+
+In conclusion, we can see that our predictors do help to predict the price, either the high/low price level (with cutoff at $4,340,000) or the actual price values.
+
+However, it's worth noting that when comparing the classification and regression models, there's a lack of consensus regarding variables that consistently increase or decrease prices. This suggests that the models might be capturing different aspects of the pricing mechanism or that the relationship between predictors and price can be nuanced and context-dependent.
+
+### Predicting Continuous Median Value
+In addition, if we compare the models that we examined for predicting continuous price, we see that the regression tree has larger error.
+
+* Linear Final Regression MAE: 782392.6	
+* Tuned Regression Tree MAE: 875211.6
+* Ridge Lambda 80 MAE: 770230.0
+
+#### Summary Metrics Table
+```{r}
+results_reg %>%
+  kable(digits=2, align = 'l')
+```
+
+#### Actual vs Predicted Plot
+```{r}
+df_act_pred <- bind_rows(
+            pred_reg1_fit %>% mutate(model = 'Linear Model'),
+            pred_reg2_fit %>% mutate(model = 'Linear Final Model'),
+            pred_tree1_fit %>% mutate(model = 'Reg Tree Model'),
+            pred_tree2_fit %>% mutate(model = 'Tuned Reg Tree Model'),
+            pred_rr_fit %>% mutate(model = 'Ridge Model'),
+            pred_final_rr_fit %>% mutate(model = 'Tuned Ridge Model')
+)
+
+ggplotly(ggplot(df_act_pred, aes(y = .pred, x = price, color=model)) + 
+  geom_point() +
+    geom_abline(col = "gold") + 
+    ggtitle("Predicted vs Actual Price") )
+```
+
+### Predicting Categorical Median Value
+And if we compare the models we examined for predicting the categorical response price level, we see that they are similar but the classification tree has higher accuracy.
+
+* Classification Tree (cutoff .60) Accuracy .85  Sensitivity .83
+* Logistic Regression (cutoff .47) Accuracy .84 Sensitivity .84
+
+#### Summary Metrics Table
+```{r}
+results_cls %>%
+  kable(digits=2, align = 'l')
+```
+
+#### ROC Curves
+```{r}
+#Capture the auc
+log_auc <- pred_log2_fit %>%
+  roc_auc(truth=priceLevel, .pred_High) %>%
+  pull(.estimate)
+tree_auc <- pred_class_tree1_fit %>%
+  roc_auc(truth=priceLevel, .pred_High) %>%
+  pull(.estimate)
+
+#Capture the thresholds and sens/spec
+df_roc <- bind_rows(pred_log2_fit %>% 
+                        roc_curve(truth = priceLevel, .pred_High) %>% 
+                        mutate(model = paste('Logistic', round(log_auc,2))),
+                    pred_class_tree1_fit %>% 
+                        roc_curve(truth = priceLevel, .pred_High) %>% 
+                        mutate(model = paste('Class Tree', round(tree_auc,2))),
+)
+
+#Create the ROC Curve(s)
+ggplotly(ggplot(df_roc,
+        aes(x = 1 - specificity, y = sensitivity,
+            group = model, col = model)) +
+        geom_path() +
+        geom_abline(lty = 3)  +
+        scale_color_brewer(palette = "Dark2") +
+        theme(legend.position = "top"))
+
+```
+
+### Reflection
+
+The hardest part of the project was finding the third regression model to use because I wasn't sure about which model would be the most accurate. I spent a significant amount of time researching and experimenting with different regression algorithms to identify the best fit for the data.
+
+If given another week, I would focus on experimenting with different regression models, tuning their hyperparameters, and possibly exploring another techniques. This additional time would allow for more thorough exploration, aiming for better predictive performance and insights into the housing data.
+
+
+
+
+
+
